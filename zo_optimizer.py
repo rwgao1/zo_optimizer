@@ -83,4 +83,3 @@ class ZOOptimizer():
 
             z = torch.normal(mean=0, std=1, size=param.size(), device=param.device, dtype=param.dtype)
             param.data = param.data + scale * self.mu * z
-            param.z = z
