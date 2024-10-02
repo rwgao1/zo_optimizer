@@ -66,8 +66,8 @@ class ZOOptimizer():
                 else:
                     param.grad += z * self.grad_scale
     
-        self.optimizer.step()
-        self.optimizer.zero_grad()
+        # self.optimizer.step()
+        # self.optimizer.zero_grad()
 
         
     @torch.no_grad()
@@ -83,3 +83,40 @@ class ZOOptimizer():
 
             z = torch.normal(mean=0, std=1, size=param.size(), device=param.device, dtype=param.dtype)
             param.data = param.data + scale * self.mu * z
+
+
+    def pseudo(self, model, inputs, target) -> None:
+        """Perform a pseudo-gradient step of the zeroth-order optimizer.
+
+        Args:
+            model: The model to evaluate the loss on.
+            inputs: The input data to the model.
+            target: The target data to the model.
+        """
+        out = model(inputs)
+        out = out.detach()
+        out.requires_grad = True
+        loss1 = self.compute_loss(out, target)
+        loss1.backward()
+        dl_dout = out.grad
+        
+
+        for _ in range(self.q):
+            self.seed = self.rng.integers(0, 100)
+            self._perturb_params(scale=1)
+            out = model(inputs)
+            loss2 = self.compute_loss(out, target)
+            self.grad_scale = dl_dout * ((loss2 - loss1) / self.mu / self.q).item()
+            self._perturb_params(scale=-1)
+
+            torch.manual_seed(self.seed)
+
+            for param in self.params_to_opt:
+                z = torch.normal(mean=0, std=1, size=param.size(), device=param.device, dtype=param.dtype)
+                if param.grad is None:
+                    param.grad = z * self.grad_scale
+                else:
+                    param.grad += z * self.grad_scale
+
+        # self.optimizer.step()
+        # self.optimizer.zero_grad()
